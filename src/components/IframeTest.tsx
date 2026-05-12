@@ -1,17 +1,23 @@
 import { useState } from 'react'
 import './IframeTest.css'
 
-type Mode = 'proxy' | 'direct'
+type Mode = 'vite' | 'crossorigin' | 'direct'
 type TgVersion = 'k' | 'a'
 
 export default function IframeTest() {
-  const [mode, setMode] = useState<Mode>('proxy')
+  const [mode, setMode] = useState<Mode>('vite')
   const [version, setVersion] = useState<TgVersion>('k')
+  const [workerUrl, setWorkerUrl] = useState('')
   const [iframeKey, setIframeKey] = useState(0)
 
-  const src = mode === 'proxy'
-    ? `/${version}/`
-    : `https://web.telegram.org/${version}/`
+  const src = (() => {
+    if (mode === 'vite') return `/${version}/`
+    if (mode === 'crossorigin') {
+      const base = workerUrl.replace(/\/$/, '')
+      return base ? `${base}/${version}/` : ''
+    }
+    return `https://web.telegram.org/${version}/`
+  })()
 
   const reload = () => setIframeKey(k => k + 1)
 
@@ -21,58 +27,80 @@ export default function IframeTest() {
         <div>
           <h2>Telegram Web in-app</h2>
           <p className="panel-desc">
-            Vite proxies Telegram paths on the same port — same-origin iframe, no navigation blocks.
-            If QR login fails, switch to version A (older, more iframe-tolerant).
+            Three modes: Vite proxy (same-origin, works in dev), Cloudflare Worker
+            (cross-origin test), and direct (proves the block).
           </p>
         </div>
       </div>
 
       <div className="controls-bar">
         <div className="mode-toggle">
-          <button className={mode === 'proxy' ? 'active' : ''} onClick={() => { setMode('proxy'); reload() }}>
-            Via Vite proxy
+          <button className={mode === 'vite' ? 'active' : ''} onClick={() => { setMode('vite'); reload() }}>
+            Vite proxy
+          </button>
+          <button className={mode === 'crossorigin' ? 'active' : ''} onClick={() => { setMode('crossorigin'); reload() }}>
+            Cloudflare Worker
           </button>
           <button className={mode === 'direct' ? 'active' : ''} onClick={() => { setMode('direct'); reload() }}>
-            Direct (shows block)
+            Direct
           </button>
         </div>
 
         <div className="mode-toggle">
           <button className={version === 'k' ? 'active' : ''} onClick={() => { setVersion('k'); reload() }}>
-            Web K (modern)
+            Web K
           </button>
           <button className={version === 'a' ? 'active' : ''} onClick={() => { setVersion('a'); reload() }}>
-            Web A (legacy)
+            Web A
           </button>
         </div>
 
-        <button className="reload-btn" onClick={reload}>↺ Reload frame</button>
+        <button className="reload-btn" onClick={reload}>↺</button>
       </div>
 
-      {mode === 'proxy' && (
+      {mode === 'vite' && (
         <div className="proxy-instructions">
           <div className="step-row">
             <span className="step-badge done">✓</span>
+            <div>Same-origin via Vite proxy — works in dev, not in production without infra.</div>
+          </div>
+        </div>
+      )}
+
+      {mode === 'crossorigin' && (
+        <div className="proxy-instructions">
+          <div className="step-row">
+            <span className="step-badge">1</span>
             <div>
-              <strong>No extra setup</strong> — just <code>npm run dev</code>.
-              iframe src = <code>/{version}/</code> → proxied through Vite on same port → same-origin.
+              <strong>Deploy the Worker</strong> (one-time, free):
+              <div className="inline-code">npm install -g wrangler</div>
+              <div className="inline-code">wrangler login</div>
+              <div className="inline-code">wrangler deploy production/worker-option1.js --name telegram-proxy --compatibility-date 2024-01-01</div>
+              You get a URL like <code>https://telegram-proxy.YOURNAME.workers.dev</code>
+            </div>
+          </div>
+          <div className="step-row">
+            <span className="step-badge">2</span>
+            <div style={{ flex: 1 }}>
+              <strong>Paste the Worker URL below</strong> and click Load:
+              <div className="token-input" style={{ marginTop: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="https://telegram-proxy.yourname.workers.dev"
+                  value={workerUrl}
+                  onChange={e => setWorkerUrl(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && reload()}
+                />
+                <button onClick={reload} disabled={!workerUrl.trim()}>Load</button>
+              </div>
             </div>
           </div>
           <div className="step-row warn-row">
             <span className="step-badge warn">!</span>
             <div>
-              <strong>If QR shows "AUTH_TOKEN_EXPIRED":</strong> the MTProto WebSocket that keeps
-              the QR token alive may be dropping. Check <strong>DevTools → Network → WS</strong> tab —
-              you should see active WebSocket connections to <code>wss://*.web.telegram.org/apiws</code>.
-              If none: try <strong>Web A</strong> (legacy version handles WS differently).
-            </div>
-          </div>
-          <div className="step-row warn-row">
-            <span className="step-badge warn">!</span>
-            <div>
-              <strong>Alternative login:</strong> if QR keeps failing, try{' '}
-              <strong>phone number login</strong> inside the frame — it doesn't rely on
-              the persistent WebSocket the same way QR does.
+              <strong>What to watch for:</strong> the iframe is cross-origin from this page.
+              You will see a <code>window.top navigation</code> error in the console.
+              The test: does Telegram still load and can you log in despite that error?
             </div>
           </div>
         </div>
@@ -88,28 +116,35 @@ export default function IframeTest() {
       )}
 
       <div className="iframe-wrap">
-        <iframe
-          key={iframeKey}
-          src={src}
-          title="Telegram Web"
-          allow="camera; microphone; notifications"
-        />
+        {src ? (
+          <iframe
+            key={iframeKey}
+            src={src}
+            title="Telegram Web"
+            allow="camera; microphone; notifications"
+          />
+        ) : null}
+
         {mode === 'direct' && (
           <div className="iframe-blocked-overlay">
             <div className="icon">🚫</div>
             <div>Frame blocked by browser</div>
-            <div className="sub">Open DevTools → Console to see the error</div>
+            <div className="sub">Open DevTools → Console</div>
+          </div>
+        )}
+        {mode === 'crossorigin' && !workerUrl && (
+          <div className="iframe-blocked-overlay">
+            <div className="icon">⏳</div>
+            <div>Paste your Worker URL above</div>
           </div>
         )}
       </div>
 
       <div className="result-box">
-        <strong>Proxied paths (Vite → web.telegram.org):</strong>
+        <strong>Option 1 verdict (cross-origin Worker):</strong>
         <ul>
-          <li><code>/k/</code> <code>/a/</code> — app entry points</li>
-          <li><code>/js/</code> <code>/css/</code> <code>/img/</code> — static assets</li>
-          <li><code>/apiws</code> — MTProto WebSocket (QR token keep-alive + auth confirmation)</li>
-          <li><code>/api/</code> <code>/file/</code> — HTTP API fallbacks</li>
+          <li>If login works → use the Worker URL as iframe src in Lovable. Done, free, no custom domain.</li>
+          <li>If <code>window.top</code> error breaks login → go Option 2 (Cloudflare Pages, same-origin).</li>
         </ul>
       </div>
     </div>
