@@ -1,0 +1,5 @@
+name = "telegram-proxy"
+main = "worker-option1.js"
+compatibility_date = "2024-01-01"
+
+# No routes — deploys to telegram-proxy.YOURNAME.workers.dev (free, no custom domain needed)
