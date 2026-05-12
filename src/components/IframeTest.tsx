@@ -98,8 +98,7 @@ export default function IframeTest() {
           key={iframeKey}
           src={src}
           title="Telegram Web"
-          allow="camera; microphone"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+          allow="camera; microphone; notifications"
         />
         {mode === 'direct' && (
           <div className="iframe-blocked-overlay">
