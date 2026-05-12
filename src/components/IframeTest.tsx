@@ -5,12 +5,13 @@ type Mode = 'proxy' | 'direct'
 
 export default function IframeTest() {
   const [mode, setMode] = useState<Mode>('proxy')
-  const [proxyRunning, setProxyRunning] = useState(false)
-  const [iframeKey, setIframeKey] = useState(0) // force remount on mode change
+  const [iframeKey, setIframeKey] = useState(0)
 
+  // Proxy mode: Vite proxies /k/ to web.telegram.org on same port → same origin → no cross-origin block
+  // Direct mode: proves the browser blocks it without proxy
   const src = mode === 'proxy'
-    ? 'http://localhost:3001'
-    : 'https://web.telegram.org'
+    ? '/k/'
+    : 'https://web.telegram.org/k/'
 
   const reload = () => setIframeKey(k => k + 1)
 
@@ -20,8 +21,9 @@ export default function IframeTest() {
         <div>
           <h2>Telegram Web in-app</h2>
           <p className="panel-desc">
-            Embeds Telegram Web via a local proxy that strips framing restrictions.
-            Run the proxy server first, then reload the frame.
+            Vite proxies <code>/k/</code> → <code>web.telegram.org/k/</code> on the same port,
+            stripping X-Frame-Options. Parent and iframe are same-origin — no navigation restrictions.
+            No separate proxy server needed.
           </p>
         </div>
       </div>
@@ -32,13 +34,13 @@ export default function IframeTest() {
             className={mode === 'proxy' ? 'active' : ''}
             onClick={() => { setMode('proxy'); reload() }}
           >
-            Proxy mode (strips X-Frame-Options)
+            Via Vite proxy (same-origin)
           </button>
           <button
             className={mode === 'direct' ? 'active' : ''}
             onClick={() => { setMode('direct'); reload() }}
           >
-            Direct (shows browser block)
+            Direct src (shows block)
           </button>
         </div>
 
@@ -50,34 +52,19 @@ export default function IframeTest() {
       {mode === 'proxy' && (
         <div className="proxy-instructions">
           <div className="step-row">
-            <span className={`step-badge ${proxyRunning ? 'done' : ''}`}>
-              {proxyRunning ? '✓' : '1'}
-            </span>
+            <span className="step-badge done">✓</span>
             <div>
-              <strong>Start the proxy</strong> — open a terminal in the project root and run:
-              <div className="inline-code">node server/proxy.js</div>
-              You should see: <em>Telegram proxy running → http://localhost:3001</em>
-            </div>
-            <button
-              className={`confirm-btn ${proxyRunning ? 'confirmed' : ''}`}
-              onClick={() => { setProxyRunning(true); reload() }}
-            >
-              {proxyRunning ? 'Running ✓' : 'Mark as running'}
-            </button>
-          </div>
-          <div className="step-row">
-            <span className="step-badge">2</span>
-            <div>
-              <strong>Reload frame</strong> — click ↺ Reload frame above (or it reloads automatically).
-              Telegram Web should appear below.
+              <strong>No extra setup needed</strong> — Vite handles the proxy. Just run{' '}
+              <div className="inline-code">npm run dev</div>
+              and the frame below loads Telegram Web at{' '}
+              <code>localhost:5173/k/</code> — same origin as this page.
             </div>
           </div>
           <div className="step-row warn-row">
             <span className="step-badge warn">!</span>
             <div>
-              If the frame loads but stays blank/crashes: Telegram Web's JS tries to connect
-              directly to Telegram servers via WebSocket — the proxy handles WS too (<code>ws: true</code>),
-              but auth cookies may not transfer. Note result in README.
+              What to check: does Telegram show the login/QR screen? Can you log in?
+              Does the chat list appear? Note any remaining errors in DevTools.
             </div>
           </div>
         </div>
@@ -89,7 +76,7 @@ export default function IframeTest() {
           <div className="inline-code">
             Refused to display 'https://web.telegram.org/' in a frame because it set 'X-Frame-Options' to 'deny'.
           </div>
-          The iframe below will be blank — this is the browser enforcing the restriction.
+          Frame below is blank — browser enforcing the restriction.
         </div>
       )}
 
@@ -107,22 +94,15 @@ export default function IframeTest() {
             <div className="sub">Open DevTools → Console to see the X-Frame-Options error</div>
           </div>
         )}
-        {mode === 'proxy' && !proxyRunning && (
-          <div className="iframe-blocked-overlay">
-            <div className="icon">⏳</div>
-            <div>Start the proxy server first</div>
-            <div className="sub">See step 1 above</div>
-          </div>
-        )}
       </div>
 
       <div className="result-box">
-        <strong>Testing this approach:</strong>
+        <strong>Why this works (same-origin proxy):</strong>
         <ul>
-          <li>Proxy strips <code>X-Frame-Options</code> and <code>Content-Security-Policy</code> → frame loads</li>
-          <li>Telegram Web JS runs but connects to Telegram servers directly (bypasses proxy) → auth/WebSocket may work or not</li>
-          <li>If Telegram UI appears and you can log in → architecture is viable</li>
-          <li>If blank after login or broken → fall back to Tab 2 (Bot API widget)</li>
+          <li>iframe src = <code>/k/</code> → resolves to <code>localhost:5173/k/</code></li>
+          <li>Parent page = <code>localhost:5173</code> → same protocol, host, port</li>
+          <li>Cross-origin navigation restrictions don't apply between same-origin frames</li>
+          <li>Vite strips <code>X-Frame-Options</code> + <code>CSP</code> before the browser sees them</li>
         </ul>
       </div>
     </div>
