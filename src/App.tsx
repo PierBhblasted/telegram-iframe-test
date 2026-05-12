@@ -11,8 +11,10 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Telegram Integration Test</h1>
-        <p className="subtitle">Testing what works for embedding Telegram in a Lovable app</p>
+        <h1>Telegram in-app — integration test</h1>
+        <p className="subtitle">
+          Goal: client can chat via Telegram without leaving the Lovable app
+        </p>
       </header>
 
       <div className="tabs">
@@ -20,13 +22,13 @@ export default function App() {
           className={tab === 'iframe' ? 'active' : ''}
           onClick={() => setTab('iframe')}
         >
-          Test 1: iframe approach
+          Option 1 — Embed Telegram Web (preferred)
         </button>
         <button
           className={tab === 'bot' ? 'active' : ''}
           onClick={() => setTab('bot')}
         >
-          Test 2: Bot API chat widget ✓
+          Option 2 — Bot API widget (fallback)
         </button>
       </div>
 
